@@ -1,8 +1,11 @@
 package com.kk4vcz.goodv;
 
+import android.content.Context;
 import android.content.Intent;
 import android.nfc.Tag;
 import android.os.Bundle;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.Fragment;
@@ -27,6 +30,7 @@ import java.io.IOException;
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener, NfcAdapter.ReaderCallback {
     private NfcAdapter mNfcAdapter;
+    private Vibrator vibrator;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,6 +38,7 @@ public class MainActivity extends AppCompatActivity
         setContentView(R.layout.activity_main);
 
         mNfcAdapter = NfcAdapter.getDefaultAdapter(this);
+        vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
 
         Log.d("NFC Adapter", mNfcAdapter.toString());
 
@@ -187,6 +192,12 @@ public class MainActivity extends AppCompatActivity
         if (handler != null) {
             //TODO: maybe don't have run on UI thread but quickest thing for right now
             runOnUiThread(() -> {
+
+                // vibrate when tag discovered
+                if (vibrator != null && vibrator.hasVibrator()) {
+                    vibrator.vibrate(VibrationEffect.createOneShot(200, VibrationEffect.DEFAULT_AMPLITUDE));
+                }
+
                 NfcRF430 rf430 = NfcRF430.get(tag);//new NfcRF430(mTag);
                 try {
                     rf430.connect();
