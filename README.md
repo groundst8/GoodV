@@ -1,3 +1,11 @@
+# GoodV Fork
+
+- Updated to use NFC reader mode api for more fine grained control
+- Targets Android API version 33, can be published to play store
+- Upgraded gradle to be built in modern Android Studio environment
+
+Thanks @travisgoodspeed for making GoodV avaliable! Here's the original documentation:
+
 Howdy y'all,
 
 Lately I've been playing around with the RF430FRL152H from Texas
