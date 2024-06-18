@@ -1,9 +1,7 @@
 package com.kk4vcz.goodv;
 
-import android.app.PendingIntent;
 import android.content.Intent;
 import android.nfc.Tag;
-import android.nfc.tech.NfcV;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
@@ -21,21 +19,24 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.view.Menu;
 
-import android.nfc.NdefMessage;
 import android.nfc.NfcAdapter;
-import android.widget.EditText;
 
 import java.io.IOException;
 
 
 public class MainActivity extends AppCompatActivity
-        implements NavigationView.OnNavigationItemSelectedListener {
-    NfcAdapter mAdapter;
+        implements NavigationView.OnNavigationItemSelectedListener, NfcAdapter.ReaderCallback {
+    private NfcAdapter mNfcAdapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        mNfcAdapter = NfcAdapter.getDefaultAdapter(this);
+
+        Log.d("NFC Adapter", mNfcAdapter.toString());
+
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
         FloatingActionButton fab = findViewById(R.id.fab);
@@ -62,21 +63,33 @@ public class MainActivity extends AppCompatActivity
     public void onResume(){
         super.onResume();
 
-        /* When we resume, we need to tell Android that while we have focus, no other app should
-         * interfere with our reading of NFC tags.  In onPause(), we'll release that claim.
-         */
+        if(mNfcAdapter!= null) {
+            Bundle options = new Bundle();
+            // Work around for some broken Nfc firmware implementations that poll the card too fast
+            options.putInt(NfcAdapter.EXTRA_READER_PRESENCE_CHECK_DELAY, 250);
 
-
-        PendingIntent intent = PendingIntent.getActivity(this, 0,
-                new Intent(this, getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_IMMUTABLE);
-        NfcAdapter.getDefaultAdapter(this).enableForegroundDispatch(this, intent, null, null);
+            // Enable ReaderMode for all types of card and disable platform sounds
+            Log.d("onResume", "Enable Reader Mode");
+            mNfcAdapter.enableReaderMode(this,
+                    this,
+                    NfcAdapter.FLAG_READER_NFC_A |
+                            NfcAdapter.FLAG_READER_NFC_B |
+                            NfcAdapter.FLAG_READER_NFC_F |
+                            NfcAdapter.FLAG_READER_NFC_V |
+                            NfcAdapter.FLAG_READER_NFC_BARCODE |
+                            NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS,
+                    options);
+        }
     }
 
     @Override
     public void onPause() {
         super.onPause();
-        if(NfcAdapter.getDefaultAdapter(this)!=null)
-            NfcAdapter.getDefaultAdapter(this).disableForegroundDispatch(this);
+
+        if(mNfcAdapter!= null) {
+            Log.d("onPause", "disable reader mode");
+            mNfcAdapter.disableReaderMode(this);
+        }
     }
 
     @Override
@@ -88,35 +101,6 @@ public class MainActivity extends AppCompatActivity
             super.onBackPressed();
         }
     }
-
-    @Override
-    public void onNewIntent(Intent intent){
-        super.onNewIntent(intent);
-        String action=intent.getAction();
-
-        if(NfcAdapter.ACTION_TAG_DISCOVERED.equals(action)){
-            //The tag is attached to the intent.
-            Tag mTag=intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
-            Log.d("TAGID", GoodVUtil.byteArrayToHex(mTag.getId()));
-
-
-            //We only connect if there's a fragment waiting to handle it.
-            if (handler != null) {
-                NfcRF430 rf430 = NfcRF430.get(mTag);//new NfcRF430(mTag);
-                try {
-                    rf430.connect();
-                    handler.tagTapped(rf430);
-                    rf430.close();
-                } catch (IOException e) {
-                    Log.d("FAIL", "NFCV connection died before completion.");
-                }
-            }
-        }else{
-            //Unknown action type.  Maybe we forgot to make a handler?
-            Log.d("GoodV", "onNewIntent()="+action);
-        }
-    }
-
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -192,6 +176,26 @@ public class MainActivity extends AppCompatActivity
             //Insert the fragment, replacing what was already there.
             FragmentManager fragmentManager = getSupportFragmentManager();
             fragmentManager.beginTransaction().replace(R.id.flContent, fragment).commit();
+        }
+    }
+
+    @Override
+    public void onTagDiscovered(Tag tag) {
+        Log.d("TAGID", GoodVUtil.byteArrayToHex(tag.getId()));
+
+        //We only connect if there's a fragment waiting to handle it.
+        if (handler != null) {
+            //TODO: maybe don't have run on UI thread but quickest thing for right now
+            runOnUiThread(() -> {
+                NfcRF430 rf430 = NfcRF430.get(tag);//new NfcRF430(mTag);
+                try {
+                    rf430.connect();
+                    handler.tagTapped(rf430);
+                    rf430.close();
+                } catch (IOException e) {
+                    Log.d("FAIL", "NFCV connection died before completion.");
+                }
+            });
         }
     }
 }
